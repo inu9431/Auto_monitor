@@ -1031,16 +1031,27 @@ class DiscordBot(commands.Bot):
             # 외출/조퇴 상태 설정
             absent_type = "leave" if custom_id.startswith("admin_leave_") else "early_leave"
             await self.db_service.set_absent_status(student.id, absent_type)
-            
+
             absent_type_text = "외출" if absent_type == "leave" else "조퇴"
-            
+
             await interaction.response.send_message(
                 f"✅ {student.zep_name}님의 상태가 **{absent_type_text}**로 설정되었습니다.\n"
                 f"오늘 하루 동안 알림이 전송되지 않습니다.",
                 ephemeral=True
             )
-            
-            
+
+            # 학생에게 관리자가 처리했음을 DM으로 통보
+            if student.discord_id:
+                try:
+                    user = await self.fetch_user(student.discord_id)
+                    await user.send(
+                        f"📋 **{absent_type_text} 처리 완료**\n\n"
+                        f"강사님이 {student.zep_name}님의 상태를 **{absent_type_text}**로 처리했습니다.\n"
+                        f"오늘 하루 동안 알림이 전송되지 않습니다."
+                    )
+                except Exception:
+                    pass
+
         except Exception as e:
             await interaction.response.send_message(
                 "❌ 응답 처리 중 오류가 발생했습니다.",
@@ -1117,6 +1128,21 @@ class DiscordBot(commands.Bot):
             if not student.discord_id:
                 await interaction.response.send_message(
                     f"❌ {student.zep_name}님의 Discord ID가 등록되지 않았습니다.",
+                    ephemeral=True
+                )
+                return
+
+            # 이미 조퇴/휴가/결석 상태면 DM 전송 안 함
+            already_confirmed = {
+                "early_leave": "조퇴",
+                "vacation": "휴가",
+                "absence": "결석",
+            }
+            if student.status_type in already_confirmed:
+                status_label = already_confirmed[student.status_type]
+                await interaction.response.send_message(
+                    f"✅ {student.zep_name}님은 이미 **{status_label}** 상태로 확정되었습니다.\n"
+                    f"수강생에게 DM이 전송되지 않습니다.",
                     ephemeral=True
                 )
                 return
@@ -1368,14 +1394,32 @@ class AdminLeaveView(discord.ui.View):
     def __init__(self, student_id: int):
         super().__init__(timeout=None)
 
-        # 수강생 확인 버튼만 표시
+        # 수강생 확인 버튼 (학생에게 DM 전송)
         check_button = discord.ui.Button(
             label="수강생 확인",
-            style=discord.ButtonStyle.success,
+            style=discord.ButtonStyle.secondary,
             custom_id=f"admin_check_student_{student_id}",
             emoji="👤"
         )
         self.add_item(check_button)
+
+        # 관리자가 직접 외출로 처리
+        leave_button = discord.ui.Button(
+            label="외출 처리",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"admin_leave_{student_id}",
+            emoji="🚪"
+        )
+        self.add_item(leave_button)
+
+        # 관리자가 직접 조퇴로 처리
+        early_leave_button = discord.ui.Button(
+            label="조퇴 처리",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"admin_early_leave_{student_id}",
+            emoji="🏃"
+        )
+        self.add_item(early_leave_button)
 
 
 class StudentAbsentView(discord.ui.View):
