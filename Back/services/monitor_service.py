@@ -529,22 +529,25 @@ class MonitorService:
                 last_leave_time_utc = student.last_leave_time if student.last_leave_time.tzinfo else student.last_leave_time.replace(tzinfo=timezone.utc)
                 elapsed_minutes = int((now_utc - last_leave_time_utc).total_seconds() / 60)
                 
-                await manager.broadcast_new_alert(
-                    alert_id=0,
-                    student_id=student.id,
-                    zep_name=student.zep_name,
-                    alert_type='leave_alert',
-                    alert_message=f'{student.zep_name}님이 접속을 종료한 지 {elapsed_minutes}분이 지났습니다.'
-                )
-                # 관리자 접속 종료 알림 로그
-                await manager.broadcast_system_log(
-                    level="warning",
-                    source="discord",
-                    event_type="dm_sent",
-                    message=f"관리자 알림: {student.zep_name}님 접속 종료 ({elapsed_minutes}분 경과)",
-                    student_name=student.zep_name,
-                    student_id=student.id
-                )
+                try:
+                    await manager.broadcast_new_alert(
+                        alert_id=0,
+                        student_id=student.id,
+                        zep_name=student.zep_name,
+                        alert_type='leave_alert',
+                        alert_message=f'{student.zep_name}님이 접속을 종료한 지 {elapsed_minutes}분이 지났습니다.'
+                    )
+                    # 관리자 접속 종료 알림 로그
+                    await manager.broadcast_system_log(
+                        level="warning",
+                        source="discord",
+                        event_type="dm_sent",
+                        message=f"관리자 알림: {student.zep_name}님 접속 종료 ({elapsed_minutes}분 경과)",
+                        student_name=student.zep_name,
+                        student_id=student.id
+                    )
+                except Exception:
+                    pass
             
             if alerted_ids:
                 await self.db_service.record_leave_admin_alerts_sent_batch(alerted_ids)

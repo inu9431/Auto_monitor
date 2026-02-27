@@ -348,7 +348,8 @@ class DBService:
                 Student.is_cam_on == False,
                 Student.last_status_change <= threshold_time,
                 Student.last_leave_time.is_(None),
-                Student.discord_id.isnot(None)
+                Student.discord_id.isnot(None),
+                Student.status_type.not_in(["vacation", "absence"]) | Student.status_type.is_(None)
             )
 
             if reset_time is not None:
@@ -917,6 +918,7 @@ class DBService:
                 .where(Student.last_leave_time <= threshold_time)
                 .where(Student.is_absent == False)
                 .where(Student.discord_id.isnot(None))
+                .where(Student.status_type.not_in(["vacation", "absence"]) | Student.status_type.is_(None))
             )
             return result.scalars().all()
     

@@ -200,6 +200,8 @@ class DiscordBot(commands.Bot):
                     await self._handle_admin_check_student(interaction, custom_id)
                 elif custom_id.startswith("student_return_"):
                     await self._handle_student_return(interaction, custom_id)
+                elif custom_id.startswith("admin_vacation_") or custom_id.startswith("admin_absence_"):
+                    await self._handle_admin_absent_response(interaction, custom_id)
     
     def _setup_commands(self):
         """명령어 설정"""
@@ -1028,11 +1030,27 @@ class DiscordBot(commands.Bot):
                 )
                 return
             
-            # 외출/조퇴 상태 설정
-            absent_type = "leave" if custom_id.startswith("admin_leave_") else "early_leave"
-            await self.db_service.set_absent_status(student.id, absent_type)
+            # 외출/조퇴/결석/휴가 상태 설정
+            if custom_id.startswith("admin_leave"):
+                absent_type = "leave"
+            elif custom_id.startswith("admin_early_leave"):
+                absent_type = "early_leave"
+            elif custom_id.startswith("admin_vacation"):
+                absent_type = "vacation"
+            else:
+                absent_type = "absence"
+            
+            if absent_type in ("vacation", "absence"):
+                await self.db_service.set_student_status(student.id, absent_type)
+            else:
+                await self.db_service.set_absent_status(student.id, absent_type)
 
-            absent_type_text = "외출" if absent_type == "leave" else "조퇴"
+            absent_type_text = {
+                "leave": "외출",
+                "early_leave": "조퇴",
+                "vacation": "휴가",
+                "absence": "결석"
+            }.get(absent_type, absent_type)
 
             await interaction.response.send_message(
                 f"✅ {student.zep_name}님의 상태가 **{absent_type_text}**로 설정되었습니다.\n"
@@ -1420,6 +1438,24 @@ class AdminLeaveView(discord.ui.View):
             emoji="🏃"
         )
         self.add_item(early_leave_button)
+
+        # 관리자가 직접 휴가로 처리
+        vacation_button = discord.ui.Button(
+            label = "휴가 처리",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"admin_vacation_{student_id}",
+            emoji="🏖️"
+        )
+        self.add_item(vacation_button)
+
+        # 관리자가 직접 결석으로 처리
+        absence_button = discord.ui.Button(
+            label = "결석 처리",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"admin_absence_{student_id}",
+            emoji="❌"
+        )
+        self.add_item(absence_button)
 
 
 class StudentAbsentView(discord.ui.View):
